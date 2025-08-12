@@ -342,15 +342,21 @@ void EmuScreen::ProcessGameBoot(const Path &filename) {
 
 // Only call this on successful boot.
 void EmuScreen::bootComplete() {
-	__DisplayListenFlip([](void *userdata) {
-		EmuScreen *scr = (EmuScreen *)userdata;
-		scr->HandleFlip();
-	}, (void *)this);
+        __DisplayListenFlip([](void *userdata) {
+                EmuScreen *scr = (EmuScreen *)userdata;
+                scr->HandleFlip();
+        }, (void *)this);
 
-	// Initialize retroachievements, now that we're on the right thread.
-	if (g_Config.bAchievementsEnable) {
-		std::string errorString;
-		Achievements::SetGame(PSP_CoreParameter().fileToStart, PSP_CoreParameter().fileType, PSP_LoadedFile());
+#if PPSSPP_PLATFORM(ANDROID)
+       if (g_Config.bExternalDisplay) {
+               System_ShowExternalDisplay();
+       }
+#endif
+
+        // Initialize retroachievements, now that we're on the right thread.
+        if (g_Config.bAchievementsEnable) {
+                std::string errorString;
+                Achievements::SetGame(PSP_CoreParameter().fileToStart, PSP_CoreParameter().fileType, PSP_LoadedFile());
 	}
 
 	// We don't want to boot with the wrong game specific config, so wait until info is ready.
@@ -1442,10 +1448,15 @@ void EmuScreen::update() {
 		return;
 	}
 
-	if (pauseTrigger_) {
-		pauseTrigger_ = false;
-		screenManager()->push(new GamePauseScreen(gamePath_, bootPending_));
-	}
+        if (pauseTrigger_) {
+                pauseTrigger_ = false;
+#if PPSSPP_PLATFORM(ANDROID)
+                if (g_Config.bExternalDisplay) {
+                        System_SetExternalDisplayPaused(true);
+                }
+#endif
+                screenManager()->push(new GamePauseScreen(gamePath_, bootPending_));
+        }
 
 	if (!PSP_IsInited())
 		return;

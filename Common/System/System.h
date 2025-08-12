@@ -6,6 +6,7 @@
 #include <functional>
 #include <cstdint>
 #include <mutex>
+#include "ppsspp_config.h"
 
 // Platform integration
 
@@ -31,6 +32,11 @@ enum PermissionStatus {
 // Ideally these should be safe to call from any thread.
 void System_Toast(std::string_view text);
 void System_ShowKeyboard();
+#if PPSSPP_PLATFORM(ANDROID)
+void System_ShowExternalDisplay();
+void System_SetExternalDisplayPaused(bool paused);
+void System_HideExternalDisplay();
+#endif
 
 // Vibrate either takes a number of milliseconds to vibrate unconditionally,
 // or you can specify these constants for "standard" feedback. On Android,

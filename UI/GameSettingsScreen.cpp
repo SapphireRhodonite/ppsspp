@@ -365,18 +365,33 @@ void GameSettingsScreen::CreateGraphicsSettings(UI::ViewGroup *graphicsSettings)
 #endif
 
 	// All backends support FIFO. Check if any immediate modes are supported, if so we can allow the user to choose.
-	if (draw->GetDeviceCaps().presentModesSupported & (Draw::PresentMode::IMMEDIATE | Draw::PresentMode::MAILBOX)) {
-		CheckBox *vSync = graphicsSettings->Add(new CheckBox(&g_Config.bVSync, gr->T("VSync")));
-		vSync->OnClick.Add([=](EventParams &e) {
-			NativeResized();
-			return UI::EVENT_CONTINUE;
-		});
-	}
+        if (draw->GetDeviceCaps().presentModesSupported & (Draw::PresentMode::IMMEDIATE | Draw::PresentMode::MAILBOX)) {
+                CheckBox *vSync = graphicsSettings->Add(new CheckBox(&g_Config.bVSync, gr->T("VSync")));
+                vSync->OnClick.Add([=](EventParams &e) {
+                        NativeResized();
+                        return UI::EVENT_CONTINUE;
+                });
+        }
+#if PPSSPP_PLATFORM(ANDROID)
+       graphicsSettings->Add(new CheckBox(&g_Config.bExternalDisplay, gr->T("External display")));
+       auto extX1 = graphicsSettings->Add(new PopupSliderChoice(&g_Config.iExternalDisplayX1, 0, 100, 0, gr->T("External display x1"), screenManager()));
+       extX1->SetFormat("%i%%");
+       extX1->SetEnabledFunc([] { return g_Config.bExternalDisplay; });
+       auto extY1 = graphicsSettings->Add(new PopupSliderChoice(&g_Config.iExternalDisplayY1, 0, 100, 0, gr->T("External display y1"), screenManager()));
+       extY1->SetFormat("%i%%");
+       extY1->SetEnabledFunc([] { return g_Config.bExternalDisplay; });
+       auto extX2 = graphicsSettings->Add(new PopupSliderChoice(&g_Config.iExternalDisplayX2, 0, 100, 50, gr->T("External display x2"), screenManager()));
+       extX2->SetFormat("%i%%");
+       extX2->SetEnabledFunc([] { return g_Config.bExternalDisplay; });
+       auto extY2 = graphicsSettings->Add(new PopupSliderChoice(&g_Config.iExternalDisplayY2, 0, 100, 100, gr->T("External display y2"), screenManager()));
+       extY2->SetFormat("%i%%");
+       extY2->SetEnabledFunc([] { return g_Config.bExternalDisplay; });
+#endif
 
 #if PPSSPP_PLATFORM(ANDROID)
-		// Hide Immersive Mode on pre-kitkat Android
-		if (System_GetPropertyInt(SYSPROP_SYSTEMVERSION) >= 19) {
-			// Let's reuse the Fullscreen translation string from desktop.
+               // Hide Immersive Mode on pre-kitkat Android
+                if (System_GetPropertyInt(SYSPROP_SYSTEMVERSION) >= 19) {
+                        // Let's reuse the Fullscreen translation string from desktop.
 			graphicsSettings->Add(new CheckBox(&g_Config.bImmersiveMode, gr->T("FullScreen", "Full Screen")))->OnClick.Handle(this, &GameSettingsScreen::OnImmersiveModeChange);
 		}
 #endif

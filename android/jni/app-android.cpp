@@ -358,7 +358,27 @@ void System_Toast(std::string_view text) {
 }
 
 void System_ShowKeyboard() {
-	PushCommand("showKeyboard", "");
+        PushCommand("showKeyboard", "");
+}
+
+void System_ShowExternalDisplay() {
+       char rect[64];
+       snprintf(rect, sizeof(rect), "%d,%d,%d,%d", g_Config.iExternalDisplayX1, g_Config.iExternalDisplayY1, g_Config.iExternalDisplayX2, g_Config.iExternalDisplayY2);
+       PushCommand("showExternalDisplay", rect);
+}
+
+void System_SetExternalDisplayPaused(bool paused) {
+       if (paused) {
+               PushCommand("setExternalDisplayPaused", "1");
+       } else {
+               char rect[64];
+               snprintf(rect, sizeof(rect), "0,%d,%d,%d,%d", g_Config.iExternalDisplayX1, g_Config.iExternalDisplayY1, g_Config.iExternalDisplayX2, g_Config.iExternalDisplayY2);
+               PushCommand("setExternalDisplayPaused", rect);
+       }
+}
+
+void System_HideExternalDisplay() {
+       PushCommand("hideExternalDisplay", "");
 }
 
 void System_Vibrate(int length_ms) {

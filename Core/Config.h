@@ -193,12 +193,17 @@ public:
 	bool bDisplayCropTo16x9;  // Crops to 16:9 if the resolution is very close.
 	float fDisplayAspectRatio;  // Stored relative to the PSP's native ratio, so 1.0 is the normal pixel aspect ratio.
 
-	bool bImmersiveMode;  // Mode on Android Kitkat 4.4 and later that hides the back button etc.
-	bool bSustainedPerformanceMode;  // Android: Slows clocks down to avoid overheating/speed fluctuations.
-	bool bIgnoreScreenInsets;  // Android: Center screen disregarding insets if this is enabled.
-	bool bVSync;
+        bool bImmersiveMode;  // Mode on Android Kitkat 4.4 and later that hides the back button etc.
+        bool bSustainedPerformanceMode;  // Android: Slows clocks down to avoid overheating/speed fluctuations.
+        bool bIgnoreScreenInsets;  // Android: Center screen disregarding insets if this is enabled.
+       bool bVSync;
+       bool bExternalDisplay;
+       int iExternalDisplayX1;
+       int iExternalDisplayY1;
+       int iExternalDisplayX2;
+       int iExternalDisplayY2;
 
-	bool bShowImDebugger;
+       bool bShowImDebugger;
 
 	int iFrameSkip;
 	int iFrameSkipType;

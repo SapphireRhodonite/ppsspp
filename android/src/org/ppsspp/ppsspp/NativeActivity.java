@@ -7,6 +7,7 @@ import android.app.Activity;
 import android.app.ActivityManager;
 import android.app.AlertDialog;
 import android.app.UiModeManager;
+import android.app.Presentation;
 import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
@@ -20,10 +21,17 @@ import android.content.pm.PackageManager.NameNotFoundException;
 import android.content.res.Configuration;
 import android.database.Cursor;
 import android.graphics.PixelFormat;
+import android.graphics.Color;
+import android.graphics.Bitmap;
+import android.graphics.Canvas;
+import android.graphics.Rect;
+import android.hardware.display.DisplayManager;
 import android.media.AudioManager;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.HandlerThread;
 import android.os.Environment;
 import android.os.PowerManager;
 import android.os.Vibrator;
@@ -38,15 +46,19 @@ import android.view.HapticFeedbackConstants;
 import android.view.InputDevice;
 import android.view.InputEvent;
 import android.view.KeyEvent;
+import android.view.Display;
 import android.view.MotionEvent;
 import android.view.Surface;
+import android.view.SurfaceHolder;
 import android.view.SurfaceView;
 import android.view.View;
+import android.view.PixelCopy;
 import android.view.Window;
 import android.view.WindowManager;
 import android.view.inputmethod.InputMethodManager;
 import android.widget.EditText;
 import android.widget.FrameLayout;
+import android.widget.TextView;
 import android.widget.Toast;
 import java.io.File;
 import java.lang.reflect.Field;
@@ -92,10 +104,17 @@ public abstract class NativeActivity extends Activity {
 	private View navigationCallbackView = null;
 
 	// audioFocusChangeListener to listen to changes in audio state
-	private AudioFocusChangeListener audioFocusChangeListener;
-	private AudioManager audioManager;
+        private AudioFocusChangeListener audioFocusChangeListener;
+        private AudioManager audioManager;
 
-	private Vibrator vibrator;
+        private Vibrator vibrator;
+       private Presentation externalDisplayPresentation;
+       private HandlerThread externalMirrorThread;
+       private FrameLayout externalDisplayLayout;
+       private int externalDisplayX1 = 0;
+       private int externalDisplayY1 = 0;
+       private int externalDisplayX2 = 50;
+       private int externalDisplayY2 = 100;
 
 	// This is to avoid losing the game/menu state etc when we are just
 	// switched-away from or rotated etc.
@@ -107,7 +126,7 @@ public abstract class NativeActivity extends Activity {
 
 	// Allow for multiple connected gamepads but just consider them the same for now.
 	// Actually this is not entirely true, see the code.
-	private ArrayList<InputDeviceState> inputPlayers = new ArrayList<InputDeviceState>();
+        private ArrayList<InputDeviceState> inputPlayers = new ArrayList<InputDeviceState>();
 
 	private PowerSaveModeReceiver mPowerSaveModeReceiver = null;
 	private SizeManager sizeManager = null;
@@ -1417,20 +1436,181 @@ public abstract class NativeActivity extends Activity {
 		AlertDialog dlg = builder.create();
 
 		dlg.setCancelable(true);
-		try {
-			dlg.show();
-		} catch (Exception e) {
-			NativeApp.reportException(e, "AlertDialog");
-		}
-	}
+                try {
+                        dlg.show();
+                } catch (Exception e) {
+                        NativeApp.reportException(e, "AlertDialog");
+                }
+        }
 
-	public boolean processCommand(String command, String params) {
-		SurfaceView surfView = javaGL ? mGLSurfaceView : mSurfaceView;
-		if (command.equals("launchBrowser")) {
-			// Special case for twitter
-			if (params.startsWith("https://twitter.com/#!/")) {
-				try {
-					String twitter_user_name = params.replaceFirst("https://twitter.com/#!/", "");
+     @TargetApi(Build.VERSION_CODES.JELLY_BEAN_MR1)
+     private void showExternalDisplay(String rectParams) {
+             if (rectParams != null && !rectParams.isEmpty()) {
+                     String[] parts = rectParams.split(",");
+                     if (parts.length == 4) {
+                             try {
+                                     externalDisplayX1 = Integer.parseInt(parts[0]);
+                                     externalDisplayY1 = Integer.parseInt(parts[1]);
+                                     externalDisplayX2 = Integer.parseInt(parts[2]);
+                                     externalDisplayY2 = Integer.parseInt(parts[3]);
+                             } catch (NumberFormatException e) {
+                                     externalDisplayX1 = 0;
+                                     externalDisplayY1 = 0;
+                                     externalDisplayX2 = 50;
+                                     externalDisplayY2 = 100;
+                             }
+                     }
+             }
+             if (Build.VERSION.SDK_INT < Build.VERSION_CODES.JELLY_BEAN_MR1)
+                     return;
+             DisplayManager dm = (DisplayManager) getSystemService(Context.DISPLAY_SERVICE);
+              Display[] displays = dm.getDisplays(DisplayManager.DISPLAY_CATEGORY_PRESENTATION);
+              if (displays.length > 0) {
+                      if (externalDisplayPresentation != null) {
+                              externalDisplayPresentation.dismiss();
+                              externalDisplayLayout = null;
+                      }
+                      if (externalMirrorThread != null) {
+                              externalMirrorThread.quitSafely();
+                              externalMirrorThread = null;
+                      }
+                      externalDisplayPresentation = new Presentation(this, displays[0]) {
+                              @Override
+                              protected void onCreate(Bundle savedInstanceState) {
+                                      super.onCreate(savedInstanceState);
+                                      externalDisplayLayout = new FrameLayout(getContext());
+                                      final View red = new View(getContext());
+                                      red.setBackgroundColor(Color.RED);
+                                      externalDisplayLayout.addView(red);
+                                      setContentView(externalDisplayLayout);
+
+                                      Handler h = new Handler();
+                                      h.postDelayed(() -> {
+                                              externalDisplayLayout.removeAllViews();
+                                              SurfaceView sv = new SurfaceView(getContext());
+                                              externalDisplayLayout.addView(sv);
+                                              startExternalMirror(sv);
+                                      }, 500);
+                              }
+                      };
+                      externalDisplayPresentation.show();
+              }
+      }
+
+      @TargetApi(Build.VERSION_CODES.O)
+      private void startExternalMirror(SurfaceView sv) {
+             if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O)
+                      return;
+              final SurfaceView srcView = javaGL ? mGLSurfaceView : mSurfaceView;
+              final SurfaceHolder holder = sv.getHolder();
+              holder.setFormat(PixelFormat.RGBA_8888);
+              externalMirrorThread = new HandlerThread("ExternalMirror");
+              externalMirrorThread.start();
+              final Handler h = new Handler(externalMirrorThread.getLooper());
+              final Bitmap bmp = Bitmap.createBitmap(srcView.getWidth(), srcView.getHeight(), Bitmap.Config.ARGB_8888);
+              final Runnable r = new Runnable() {
+                      @Override
+                      public void run() {
+                              if (srcView.getWidth() == 0 || srcView.getHeight() == 0) {
+                                      h.postDelayed(this, 16);
+                                      return;
+                              }
+                              PixelCopy.request(srcView, bmp, copyResult -> {
+                                      if (copyResult == PixelCopy.SUCCESS) {
+                                              Canvas canvas = holder.lockCanvas();
+                                              if (canvas != null) {
+                                                     Rect src = new Rect(
+                                                             bmp.getWidth() * externalDisplayX1 / 100,
+                                                             bmp.getHeight() * externalDisplayY1 / 100,
+                                                             bmp.getWidth() * externalDisplayX2 / 100,
+                                                             bmp.getHeight() * externalDisplayY2 / 100);
+                                                      Rect dst = new Rect(0, 0, canvas.getWidth(), canvas.getHeight());
+                                                      canvas.drawBitmap(bmp, src, dst, null);
+                                                      holder.unlockCanvasAndPost(canvas);
+                                              }
+                                      }
+                                      h.post(this);
+                              }, h);
+                      }
+              };
+              h.post(r);
+      }
+
+     @TargetApi(Build.VERSION_CODES.JELLY_BEAN_MR1)
+     private void setExternalDisplayPaused(String param) {
+             if (Build.VERSION.SDK_INT < Build.VERSION_CODES.JELLY_BEAN_MR1)
+                     return;
+             if (externalDisplayPresentation == null)
+                     return;
+             String[] parts = param.split(",");
+             boolean paused = parts.length > 0 && parts[0].equals("1");
+             if (paused) {
+                     if (externalMirrorThread != null) {
+                             externalMirrorThread.quitSafely();
+                             externalMirrorThread = null;
+                     }
+                     if (externalDisplayLayout != null) {
+                             externalDisplayLayout.removeAllViews();
+                             TextView tv = new TextView(externalDisplayPresentation.getContext());
+                             tv.setText("PAUSADO");
+                             tv.setTextColor(Color.WHITE);
+                             tv.setTextSize(48);
+                             tv.setGravity(Gravity.CENTER);
+                             externalDisplayLayout.setBackgroundColor(Color.BLACK);
+                             externalDisplayLayout.addView(tv, new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
+                     }
+             } else {
+                     if (parts.length == 5) {
+                             try {
+                                     externalDisplayX1 = Integer.parseInt(parts[1]);
+                                     externalDisplayY1 = Integer.parseInt(parts[2]);
+                                     externalDisplayX2 = Integer.parseInt(parts[3]);
+                                     externalDisplayY2 = Integer.parseInt(parts[4]);
+                             } catch (NumberFormatException e) {
+                                     // Ignore parse errors, keep previous values
+                             }
+                     }
+                     if (externalDisplayLayout != null) {
+                             externalDisplayLayout.removeAllViews();
+                             SurfaceView sv = new SurfaceView(externalDisplayPresentation.getContext());
+                             externalDisplayLayout.setBackgroundColor(Color.BLACK);
+                             externalDisplayLayout.addView(sv);
+                             startExternalMirror(sv);
+                     }
+             }
+     }
+
+    @TargetApi(Build.VERSION_CODES.JELLY_BEAN_MR1)
+    private void hideExternalDisplay() {
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.JELLY_BEAN_MR1)
+                    return;
+            if (externalMirrorThread != null) {
+                    externalMirrorThread.quitSafely();
+                    externalMirrorThread = null;
+            }
+            if (externalDisplayPresentation != null) {
+                    externalDisplayPresentation.dismiss();
+                    externalDisplayPresentation = null;
+                    externalDisplayLayout = null;
+            }
+    }
+
+       public boolean processCommand(String command, String params) {
+               SurfaceView surfView = javaGL ? mGLSurfaceView : mSurfaceView;
+            if (command.equals("showExternalDisplay")) {
+                    showExternalDisplay(params);
+                    return true;
+           } else if (command.equals("setExternalDisplayPaused")) {
+                   setExternalDisplayPaused(params);
+                   return true;
+           } else if (command.equals("hideExternalDisplay")) {
+                   hideExternalDisplay();
+                    return true;
+           } else if (command.equals("launchBrowser")) {
+                       // Special case for twitter
+                       if (params.startsWith("https://twitter.com/#!/")) {
+                               try {
+                                       String twitter_user_name = params.replaceFirst("https://twitter.com/#!/", "");
 					try {
 						Log.i(TAG, "Launching twitter directly: " + twitter_user_name);
 						startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse("twitter://user?screen_name=" + twitter_user_name)));

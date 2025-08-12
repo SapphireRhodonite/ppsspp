@@ -69,10 +69,11 @@ private:
 	bool lastOnline_ = false;
 	bool lastNetInited_ = false;
 	bool lastNetInetInited_ = false;
-	bool lastAdhocServerConnected_ = false;
-	bool lastDNSConfigLoaded_ = false;
+        bool lastAdhocServerConnected_ = false;
+        bool lastDNSConfigLoaded_ = false;
 
-	bool bootPending_ = false;
+        bool bootPending_ = false;
+       bool exiting_ = false;
 };
 
 std::string GetConfirmExitMessage();

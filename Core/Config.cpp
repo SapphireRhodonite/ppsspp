@@ -720,10 +720,15 @@ static const ConfigSetting graphicsSettings[] = {
 
 	ConfigSetting("TexScalingLevel", &g_Config.iTexScalingLevel, 1, CfgFlag::PER_GAME | CfgFlag::REPORT),
 	ConfigSetting("TexScalingType", &g_Config.iTexScalingType, 0, CfgFlag::PER_GAME | CfgFlag::REPORT),
-	ConfigSetting("TexDeposterize", &g_Config.bTexDeposterize, false, CfgFlag::PER_GAME | CfgFlag::REPORT),
-	ConfigSetting("TexHardwareScaling", &g_Config.bTexHardwareScaling, false, CfgFlag::PER_GAME | CfgFlag::REPORT),
-	ConfigSetting("VSync", &g_Config.bVSync, &DefaultVSync, CfgFlag::PER_GAME),
-	ConfigSetting("BloomHack", &g_Config.iBloomHack, 0, CfgFlag::PER_GAME | CfgFlag::REPORT),
+        ConfigSetting("TexDeposterize", &g_Config.bTexDeposterize, false, CfgFlag::PER_GAME | CfgFlag::REPORT),
+        ConfigSetting("TexHardwareScaling", &g_Config.bTexHardwareScaling, false, CfgFlag::PER_GAME | CfgFlag::REPORT),
+        ConfigSetting("VSync", &g_Config.bVSync, &DefaultVSync, CfgFlag::PER_GAME),
+       ConfigSetting("ExternalDisplay", &g_Config.bExternalDisplay, false, CfgFlag::DEFAULT),
+       ConfigSetting("ExternalDisplayX1", &g_Config.iExternalDisplayX1, 0, CfgFlag::DEFAULT),
+       ConfigSetting("ExternalDisplayY1", &g_Config.iExternalDisplayY1, 0, CfgFlag::DEFAULT),
+       ConfigSetting("ExternalDisplayX2", &g_Config.iExternalDisplayX2, 50, CfgFlag::DEFAULT),
+       ConfigSetting("ExternalDisplayY2", &g_Config.iExternalDisplayY2, 100, CfgFlag::DEFAULT),
+        ConfigSetting("BloomHack", &g_Config.iBloomHack, 0, CfgFlag::PER_GAME | CfgFlag::REPORT),
 
 	// Not really a graphics setting...
 	ConfigSetting("SplineBezierQuality", &g_Config.iSplineBezierQuality, 2, CfgFlag::PER_GAME | CfgFlag::REPORT),

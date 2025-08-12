@@ -30,6 +30,7 @@
 #include "Common/StringUtils.h"
 #include "Common/System/OSD.h"
 #include "Common/System/Request.h"
+#include "Common/System/System.h"
 #include "Common/VR/PPSSPPVR.h"
 #include "Common/UI/AsyncImageFileView.h"
 
@@ -307,7 +308,12 @@ GamePauseScreen::GamePauseScreen(const Path &filename, bool bootPending)
 }
 
 GamePauseScreen::~GamePauseScreen() {
-	__DisplaySetWasPaused();
+#if PPSSPP_PLATFORM(ANDROID)
+       if (g_Config.bExternalDisplay && !exiting_) {
+               System_SetExternalDisplayPaused(false);
+       }
+#endif
+       __DisplaySetWasPaused();
 }
 
 bool GamePauseScreen::key(const KeyInput &key) {
@@ -677,30 +683,42 @@ std::string GetConfirmExitMessage() {
 }
 
 UI::EventReturn GamePauseScreen::OnExit(UI::EventParams &e) {
-	std::string confirmExitMessage = GetConfirmExitMessage();
+        std::string confirmExitMessage = GetConfirmExitMessage();
 
-	if (!confirmExitMessage.empty()) {
-		auto di = GetI18NCategory(I18NCat::DIALOG);
-		confirmExitMessage += '\n';
-		confirmExitMessage += di->T("Are you sure you want to exit?");
-		screenManager()->push(new PromptScreen(gamePath_, confirmExitMessage, di->T("Yes"), di->T("No"), [=](bool result) {
-			if (result) {
-				if (g_Config.bPauseMenuExitsEmulator) {
-					System_ExitApp();
-				} else {
-					finishNextFrameResult_ = DR_OK;  // exit game
-					finishNextFrame_ = true;
-				}
-			}
-		}));
-	} else {
-		if (g_Config.bPauseMenuExitsEmulator) {
-			System_ExitApp();
-		} else {
-			TriggerFinish(DR_OK);
-		}
-	}
-	return UI::EVENT_DONE;
+        if (!confirmExitMessage.empty()) {
+                auto di = GetI18NCategory(I18NCat::DIALOG);
+                confirmExitMessage += '\n';
+                confirmExitMessage += di->T("Are you sure you want to exit?");
+                screenManager()->push(new PromptScreen(gamePath_, confirmExitMessage, di->T("Yes"), di->T("No"), [=](bool result) {
+                        if (result) {
+                                exiting_ = true;
+#if PPSSPP_PLATFORM(ANDROID)
+                               if (g_Config.bExternalDisplay) {
+                                       System_HideExternalDisplay();
+                               }
+#endif
+                                if (g_Config.bPauseMenuExitsEmulator) {
+                                        System_ExitApp();
+                                } else {
+                                        finishNextFrameResult_ = DR_OK;  // exit game
+                                        finishNextFrame_ = true;
+                                }
+                        }
+                }));
+        } else {
+                exiting_ = true;
+#if PPSSPP_PLATFORM(ANDROID)
+               if (g_Config.bExternalDisplay) {
+                       System_HideExternalDisplay();
+               }
+#endif
+                if (g_Config.bPauseMenuExitsEmulator) {
+                        System_ExitApp();
+                } else {
+                        TriggerFinish(DR_OK);
+                }
+        }
+        return UI::EVENT_DONE;
 }
 
 UI::EventReturn GamePauseScreen::OnReportFeedback(UI::EventParams &e) {
