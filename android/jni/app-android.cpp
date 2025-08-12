@@ -363,7 +363,7 @@ void System_ShowKeyboard() {
 
 void System_ShowExternalDisplay() {
        char rect[64];
-       snprintf(rect, sizeof(rect), "%d,%d,%d,%d", g_Config.iExternalDisplayX1, g_Config.iExternalDisplayY1, g_Config.iExternalDisplayX2, g_Config.iExternalDisplayY2);
+       snprintf(rect, sizeof(rect), "%d,%d,%d,%d,%d", g_Config.iExternalDisplayX1, g_Config.iExternalDisplayY1, g_Config.iExternalDisplayX2, g_Config.iExternalDisplayY2, g_Config.bExternalDisplaySwap ? 1 : 0);
        PushCommand("showExternalDisplay", rect);
 }
 
@@ -372,7 +372,7 @@ void System_SetExternalDisplayPaused(bool paused) {
                PushCommand("setExternalDisplayPaused", "1");
        } else {
                char rect[64];
-               snprintf(rect, sizeof(rect), "0,%d,%d,%d,%d", g_Config.iExternalDisplayX1, g_Config.iExternalDisplayY1, g_Config.iExternalDisplayX2, g_Config.iExternalDisplayY2);
+               snprintf(rect, sizeof(rect), "0,%d,%d,%d,%d,%d", g_Config.iExternalDisplayX1, g_Config.iExternalDisplayY1, g_Config.iExternalDisplayX2, g_Config.iExternalDisplayY2, g_Config.bExternalDisplaySwap ? 1 : 0);
                PushCommand("setExternalDisplayPaused", rect);
        }
 }

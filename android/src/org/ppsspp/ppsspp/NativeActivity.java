@@ -58,6 +58,7 @@ import android.view.WindowManager;
 import android.view.inputmethod.InputMethodManager;
 import android.widget.EditText;
 import android.widget.FrameLayout;
+import android.view.ViewGroup;
 import android.widget.TextView;
 import android.widget.Toast;
 import java.io.File;
@@ -107,10 +108,12 @@ public abstract class NativeActivity extends Activity {
         private AudioFocusChangeListener audioFocusChangeListener;
         private AudioManager audioManager;
 
-        private Vibrator vibrator;
+       private Vibrator vibrator;
        private Presentation externalDisplayPresentation;
        private HandlerThread externalMirrorThread;
        private FrameLayout externalDisplayLayout;
+       private FrameLayout internalDisplayLayout;
+       private boolean externalDisplaySwap = false;
        private int externalDisplayX1 = 0;
        private int externalDisplayY1 = 0;
        private int externalDisplayX2 = 50;
@@ -1447,7 +1450,7 @@ public abstract class NativeActivity extends Activity {
      private void showExternalDisplay(String rectParams) {
              if (rectParams != null && !rectParams.isEmpty()) {
                      String[] parts = rectParams.split(",");
-                     if (parts.length == 4) {
+                     if (parts.length >= 4) {
                              try {
                                      externalDisplayX1 = Integer.parseInt(parts[0]);
                                      externalDisplayY1 = Integer.parseInt(parts[1]);
@@ -1459,6 +1462,11 @@ public abstract class NativeActivity extends Activity {
                                      externalDisplayX2 = 50;
                                      externalDisplayY2 = 100;
                              }
+                     }
+                     if (parts.length >= 5) {
+                             externalDisplaySwap = parts[4].equals("1");
+                     } else {
+                             externalDisplaySwap = false;
                      }
              }
              if (Build.VERSION.SDK_INT < Build.VERSION_CODES.JELLY_BEAN_MR1)
@@ -1474,6 +1482,13 @@ public abstract class NativeActivity extends Activity {
                               externalMirrorThread.quitSafely();
                               externalMirrorThread = null;
                       }
+                     if (internalDisplayLayout != null) {
+                             ViewGroup parent = (ViewGroup) internalDisplayLayout.getParent();
+                             if (parent != null) {
+                                     parent.removeView(internalDisplayLayout);
+                             }
+                             internalDisplayLayout = null;
+                     }
                       externalDisplayPresentation = new Presentation(this, displays[0]) {
                               @Override
                               protected void onCreate(Bundle savedInstanceState) {
@@ -1488,53 +1503,89 @@ public abstract class NativeActivity extends Activity {
                                       h.postDelayed(() -> {
                                               externalDisplayLayout.removeAllViews();
                                               SurfaceView sv = new SurfaceView(getContext());
+                                              externalDisplayLayout.setBackgroundColor(Color.BLACK);
                                               externalDisplayLayout.addView(sv);
-                                              startExternalMirror(sv);
+                                              if (externalDisplaySwap) {
+                                                      internalDisplayLayout = new FrameLayout(NativeActivity.this);
+                                                      internalDisplayLayout.setBackgroundColor(Color.BLACK);
+                                                      SurfaceView internalSv = new SurfaceView(NativeActivity.this);
+                                                      internalDisplayLayout.addView(internalSv);
+                                                      addContentView(internalDisplayLayout, new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
+                                                      startExternalMirror(sv, internalSv);
+                                              } else {
+                                                      startExternalMirror(sv, null);
+                                              }
                                       }, 500);
                               }
                       };
                       externalDisplayPresentation.show();
               }
-      }
+     }
 
-      @TargetApi(Build.VERSION_CODES.O)
-      private void startExternalMirror(SurfaceView sv) {
-             if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O)
-                      return;
-              final SurfaceView srcView = javaGL ? mGLSurfaceView : mSurfaceView;
-              final SurfaceHolder holder = sv.getHolder();
-              holder.setFormat(PixelFormat.RGBA_8888);
-              externalMirrorThread = new HandlerThread("ExternalMirror");
-              externalMirrorThread.start();
-              final Handler h = new Handler(externalMirrorThread.getLooper());
-              final Bitmap bmp = Bitmap.createBitmap(srcView.getWidth(), srcView.getHeight(), Bitmap.Config.ARGB_8888);
-              final Runnable r = new Runnable() {
-                      @Override
-                      public void run() {
-                              if (srcView.getWidth() == 0 || srcView.getHeight() == 0) {
-                                      h.postDelayed(this, 16);
-                                      return;
-                              }
-                              PixelCopy.request(srcView, bmp, copyResult -> {
-                                      if (copyResult == PixelCopy.SUCCESS) {
-                                              Canvas canvas = holder.lockCanvas();
-                                              if (canvas != null) {
-                                                     Rect src = new Rect(
-                                                             bmp.getWidth() * externalDisplayX1 / 100,
-                                                             bmp.getHeight() * externalDisplayY1 / 100,
-                                                             bmp.getWidth() * externalDisplayX2 / 100,
-                                                             bmp.getHeight() * externalDisplayY2 / 100);
-                                                      Rect dst = new Rect(0, 0, canvas.getWidth(), canvas.getHeight());
-                                                      canvas.drawBitmap(bmp, src, dst, null);
-                                                      holder.unlockCanvasAndPost(canvas);
-                                              }
-                                      }
-                                      h.post(this);
-                              }, h);
-                      }
-              };
-              h.post(r);
-      }
+     @TargetApi(Build.VERSION_CODES.O)
+     private void startExternalMirror(SurfaceView sv, SurfaceView internalSv) {
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O)
+                     return;
+             final SurfaceView srcView = javaGL ? mGLSurfaceView : mSurfaceView;
+             final SurfaceHolder holder = sv.getHolder();
+             holder.setFormat(PixelFormat.RGBA_8888);
+             final SurfaceHolder internalHolder = internalSv != null ? internalSv.getHolder() : null;
+             if (internalHolder != null)
+                     internalHolder.setFormat(PixelFormat.RGBA_8888);
+             externalMirrorThread = new HandlerThread("ExternalMirror");
+             externalMirrorThread.start();
+             final Handler h = new Handler(externalMirrorThread.getLooper());
+             final Bitmap bmp = Bitmap.createBitmap(srcView.getWidth(), srcView.getHeight(), Bitmap.Config.ARGB_8888);
+             final Runnable r = new Runnable() {
+                     @Override
+                     public void run() {
+                             if (srcView.getWidth() == 0 || srcView.getHeight() == 0) {
+                                     h.postDelayed(this, 16);
+                                     return;
+                             }
+                             PixelCopy.request(srcView, bmp, copyResult -> {
+                                     if (copyResult == PixelCopy.SUCCESS) {
+                                             if (!externalDisplaySwap) {
+                                                     Canvas canvas = holder.lockCanvas();
+                                                     if (canvas != null) {
+                                                            Rect src = new Rect(
+                                                                    bmp.getWidth() * externalDisplayX1 / 100,
+                                                                    bmp.getHeight() * externalDisplayY1 / 100,
+                                                                    bmp.getWidth() * externalDisplayX2 / 100,
+                                                                    bmp.getHeight() * externalDisplayY2 / 100);
+                                                            Rect dst = new Rect(0, 0, canvas.getWidth(), canvas.getHeight());
+                                                            canvas.drawBitmap(bmp, src, dst, null);
+                                                            holder.unlockCanvasAndPost(canvas);
+                                                     }
+                                             } else {
+                                                     Canvas canvas = holder.lockCanvas();
+                                                     if (canvas != null) {
+                                                            Rect srcFull = new Rect(0, 0, bmp.getWidth(), bmp.getHeight());
+                                                            Rect dstFull = new Rect(0, 0, canvas.getWidth(), canvas.getHeight());
+                                                            canvas.drawBitmap(bmp, srcFull, dstFull, null);
+                                                            holder.unlockCanvasAndPost(canvas);
+                                                     }
+                                                     if (internalHolder != null) {
+                                                            Canvas canvas2 = internalHolder.lockCanvas();
+                                                            if (canvas2 != null) {
+                                                                    Rect src = new Rect(
+                                                                            bmp.getWidth() * externalDisplayX1 / 100,
+                                                                            bmp.getHeight() * externalDisplayY1 / 100,
+                                                                            bmp.getWidth() * externalDisplayX2 / 100,
+                                                                            bmp.getHeight() * externalDisplayY2 / 100);
+                                                                    Rect dst = new Rect(0, 0, canvas2.getWidth(), canvas2.getHeight());
+                                                                    canvas2.drawBitmap(bmp, src, dst, null);
+                                                                    internalHolder.unlockCanvasAndPost(canvas2);
+                                                            }
+                                                     }
+                                             }
+                                     }
+                                     h.post(this);
+                             }, h);
+                     }
+             };
+             h.post(r);
+     }
 
      @TargetApi(Build.VERSION_CODES.JELLY_BEAN_MR1)
      private void setExternalDisplayPaused(String param) {
@@ -1549,6 +1600,13 @@ public abstract class NativeActivity extends Activity {
                              externalMirrorThread.quitSafely();
                              externalMirrorThread = null;
                      }
+                     if (internalDisplayLayout != null) {
+                             ViewGroup parent = (ViewGroup) internalDisplayLayout.getParent();
+                             if (parent != null) {
+                                     parent.removeView(internalDisplayLayout);
+                             }
+                             internalDisplayLayout = null;
+                     }
                      if (externalDisplayLayout != null) {
                              externalDisplayLayout.removeAllViews();
                              TextView tv = new TextView(externalDisplayPresentation.getContext());
@@ -1560,7 +1618,7 @@ public abstract class NativeActivity extends Activity {
                              externalDisplayLayout.addView(tv, new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
                      }
              } else {
-                     if (parts.length == 5) {
+                     if (parts.length >= 5) {
                              try {
                                      externalDisplayX1 = Integer.parseInt(parts[1]);
                                      externalDisplayY1 = Integer.parseInt(parts[2]);
@@ -1570,12 +1628,24 @@ public abstract class NativeActivity extends Activity {
                                      // Ignore parse errors, keep previous values
                              }
                      }
+                     if (parts.length >= 6) {
+                             externalDisplaySwap = parts[5].equals("1");
+                     }
                      if (externalDisplayLayout != null) {
                              externalDisplayLayout.removeAllViews();
                              SurfaceView sv = new SurfaceView(externalDisplayPresentation.getContext());
                              externalDisplayLayout.setBackgroundColor(Color.BLACK);
                              externalDisplayLayout.addView(sv);
-                             startExternalMirror(sv);
+                             if (externalDisplaySwap) {
+                                     internalDisplayLayout = new FrameLayout(this);
+                                     internalDisplayLayout.setBackgroundColor(Color.BLACK);
+                                     SurfaceView internalSv = new SurfaceView(this);
+                                     internalDisplayLayout.addView(internalSv);
+                                     addContentView(internalDisplayLayout, new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
+                                     startExternalMirror(sv, internalSv);
+                             } else {
+                                     startExternalMirror(sv, null);
+                             }
                      }
              }
      }
@@ -1592,6 +1662,13 @@ public abstract class NativeActivity extends Activity {
                     externalDisplayPresentation.dismiss();
                     externalDisplayPresentation = null;
                     externalDisplayLayout = null;
+            }
+            if (internalDisplayLayout != null) {
+                    ViewGroup parent = (ViewGroup) internalDisplayLayout.getParent();
+                    if (parent != null) {
+                            parent.removeView(internalDisplayLayout);
+                    }
+                    internalDisplayLayout = null;
             }
     }
 

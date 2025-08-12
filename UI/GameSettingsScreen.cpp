@@ -374,6 +374,8 @@ void GameSettingsScreen::CreateGraphicsSettings(UI::ViewGroup *graphicsSettings)
         }
 #if PPSSPP_PLATFORM(ANDROID)
        graphicsSettings->Add(new CheckBox(&g_Config.bExternalDisplay, gr->T("External display")));
+       auto extSwap = graphicsSettings->Add(new CheckBox(&g_Config.bExternalDisplaySwap, gr->T("External display swap")));
+       extSwap->SetEnabledFunc([] { return g_Config.bExternalDisplay; });
        auto extX1 = graphicsSettings->Add(new PopupSliderChoice(&g_Config.iExternalDisplayX1, 0, 100, 0, gr->T("External display x1"), screenManager()));
        extX1->SetFormat("%i%%");
        extX1->SetEnabledFunc([] { return g_Config.bExternalDisplay; });
