@@ -381,6 +381,10 @@ void System_HideExternalDisplay() {
        PushCommand("hideExternalDisplay", "");
 }
 
+void System_EditExternalDisplayRect() {
+       PushCommand("editExternalDisplayRect", "");
+}
+
 void System_Vibrate(int length_ms) {
 	char temp[32];
 	snprintf(temp, sizeof(temp), "%d", length_ms);
@@ -586,9 +590,16 @@ extern "C" void Java_org_ppsspp_ppsspp_NativeActivity_registerCallbacks(JNIEnv *
 }
 
 extern "C" void Java_org_ppsspp_ppsspp_NativeActivity_unregisterCallbacks(JNIEnv *env, jobject obj) {
-	Android_StorageSetNativeActivity(nullptr);
-	env->DeleteGlobalRef(nativeActivity);
-	nativeActivity = nullptr;
+        Android_StorageSetNativeActivity(nullptr);
+        env->DeleteGlobalRef(nativeActivity);
+        nativeActivity = nullptr;
+}
+
+extern "C" void Java_org_ppsspp_ppsspp_NativeActivity_updateExternalDisplayRect(JNIEnv *, jobject, jint x1, jint y1, jint x2, jint y2) {
+       g_Config.iExternalDisplayX1 = x1;
+       g_Config.iExternalDisplayY1 = y1;
+       g_Config.iExternalDisplayX2 = x2;
+       g_Config.iExternalDisplayY2 = y2;
 }
 
 // This is now only used as a trigger for GetAppInfo as a function to all before Init.

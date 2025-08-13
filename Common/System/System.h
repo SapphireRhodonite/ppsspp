@@ -36,6 +36,7 @@ void System_ShowKeyboard();
 void System_ShowExternalDisplay();
 void System_SetExternalDisplayPaused(bool paused);
 void System_HideExternalDisplay();
+void System_EditExternalDisplayRect();
 #endif
 
 // Vibrate either takes a number of milliseconds to vibrate unconditionally,

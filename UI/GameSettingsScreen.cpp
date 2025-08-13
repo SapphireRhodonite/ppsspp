@@ -33,6 +33,7 @@
 #include "Common/VR/PPSSPPVR.h"
 
 #include "Common/System/Display.h"  // Only to check screen aspect ratio with pixel_yres/pixel_xres
+#include "Common/System/System.h"
 #include "Common/System/Request.h"
 #include "Common/System/OSD.h"
 #include "Common/System/NativeApp.h"
@@ -388,6 +389,12 @@ void GameSettingsScreen::CreateGraphicsSettings(UI::ViewGroup *graphicsSettings)
        auto extY2 = graphicsSettings->Add(new PopupSliderChoice(&g_Config.iExternalDisplayY2, 0, 100, 100, gr->T("External display y2"), screenManager()));
        extY2->SetFormat("%i%%");
        extY2->SetEnabledFunc([] { return g_Config.bExternalDisplay; });
+       auto extCanvas = graphicsSettings->Add(new Choice(gr->T("Use canvas for rect")));
+       extCanvas->SetEnabledFunc([] { return g_Config.bExternalDisplay && PSP_IsInited(); });
+       extCanvas->OnClick.Add([](UI::EventParams &) {
+               System_EditExternalDisplayRect();
+               return UI::EVENT_CONTINUE;
+       });
 #endif
 
 #if PPSSPP_PLATFORM(ANDROID)

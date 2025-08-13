@@ -25,6 +25,7 @@ import android.graphics.Color;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Rect;
+import android.graphics.Paint;
 import android.hardware.display.DisplayManager;
 import android.media.AudioManager;
 import android.net.Uri;
@@ -61,6 +62,7 @@ import android.widget.FrameLayout;
 import android.view.ViewGroup;
 import android.widget.TextView;
 import android.widget.Toast;
+import android.widget.Button;
 import java.io.File;
 import java.lang.reflect.Field;
 import java.util.List;
@@ -118,6 +120,7 @@ public abstract class NativeActivity extends Activity {
        private int externalDisplayY1 = 0;
        private int externalDisplayX2 = 50;
        private int externalDisplayY2 = 100;
+       private FrameLayout rectEditLayout;
 
 	// This is to avoid losing the game/menu state etc when we are just
 	// switched-away from or rotated etc.
@@ -167,8 +170,9 @@ public abstract class NativeActivity extends Activity {
 
 	// Functions for the app activity to override to change behaviour.
 
-	public native void registerCallbacks();
-	public native void unregisterCallbacks();
+        public native void registerCallbacks();
+        public native void unregisterCallbacks();
+       private native void updateExternalDisplayRect(int x1, int y1, int x2, int y2);
 
 	NativeRenderer getRenderer() {
 		return nativeRenderer;
@@ -1446,6 +1450,129 @@ public abstract class NativeActivity extends Activity {
                 }
         }
 
+       private class RectEditorView extends View {
+               private Paint linePaint;
+               private Paint pointPaint;
+               private int radius = 30;
+               private float x1, y1, x2, y2;
+               private int moving = -1;
+
+               RectEditorView(Context ctx) {
+                       super(ctx);
+                       linePaint = new Paint();
+                       linePaint.setColor(Color.WHITE);
+                       linePaint.setStrokeWidth(3);
+                       pointPaint = new Paint();
+                       pointPaint.setColor(Color.RED);
+               }
+
+               public void setRect(int ax1, int ay1, int ax2, int ay2) {
+                       x1 = ax1 / 100.0f;
+                       y1 = ay1 / 100.0f;
+                       x2 = ax2 / 100.0f;
+                       y2 = ay2 / 100.0f;
+               }
+
+               @Override
+               protected void onDraw(Canvas canvas) {
+                       int w = getWidth(), h = getHeight();
+                       float tlx = x1 * w, tly = y1 * h;
+                       float trx = x2 * w, tryy = y1 * h;
+                       float brx = x2 * w, bry = y2 * h;
+                       float blx = x1 * w, bly = y2 * h;
+                       canvas.drawLine(tlx, tly, trx, tryy, linePaint);
+                       canvas.drawLine(trx, tryy, brx, bry, linePaint);
+                       canvas.drawLine(brx, bry, blx, bly, linePaint);
+                       canvas.drawLine(blx, bly, tlx, tly, linePaint);
+                       canvas.drawCircle(tlx, tly, radius, pointPaint);
+                       canvas.drawCircle(trx, tryy, radius, pointPaint);
+                       canvas.drawCircle(brx, bry, radius, pointPaint);
+                       canvas.drawCircle(blx, bly, radius, pointPaint);
+               }
+
+               @Override
+               public boolean onTouchEvent(MotionEvent e) {
+                       int w = getWidth(), h = getHeight();
+                       float x = e.getX(), y = e.getY();
+                       float tlx = x1 * w, tly = y1 * h;
+                       float trx = x2 * w, tryy = y1 * h;
+                       float brx = x2 * w, bry = y2 * h;
+                       float blx = x1 * w, bly = y2 * h;
+                       switch (e.getAction()) {
+                       case MotionEvent.ACTION_DOWN:
+                               if (dist(x, y, tlx, tly) < radius * 2) moving = 0;
+                               else if (dist(x, y, trx, tryy) < radius * 2) moving = 1;
+                               else if (dist(x, y, brx, bry) < radius * 2) moving = 2;
+                               else if (dist(x, y, blx, bly) < radius * 2) moving = 3;
+                               break;
+                       case MotionEvent.ACTION_MOVE:
+                               if (moving == 0) { x1 = clamp(x / w); y1 = clamp(y / h); }
+                               else if (moving == 1) { x2 = clamp(x / w); y1 = clamp(y / h); }
+                               else if (moving == 2) { x2 = clamp(x / w); y2 = clamp(y / h); }
+                               else if (moving == 3) { x1 = clamp(x / w); y2 = clamp(y / h); }
+                               invalidate();
+                               break;
+                       case MotionEvent.ACTION_UP:
+                       case MotionEvent.ACTION_CANCEL:
+                               moving = -1;
+                               break;
+                       }
+                       return true;
+               }
+
+               private float dist(float ax, float ay, float bx, float by) {
+                       float dx = ax - bx, dy = ay - by;
+                       return (float)Math.hypot(dx, dy);
+               }
+
+               private float clamp(float v) {
+                       return Math.max(0f, Math.min(1f, v));
+               }
+
+               public int getX1() { return Math.round(x1 * 100); }
+               public int getY1() { return Math.round(y1 * 100); }
+               public int getX2() { return Math.round(x2 * 100); }
+               public int getY2() { return Math.round(y2 * 100); }
+       }
+
+       private void editExternalDisplayRect() {
+               if (rectEditLayout != null)
+                       return;
+               rectEditLayout = new FrameLayout(this);
+               rectEditLayout.setBackgroundColor(0x66000000);
+               RectEditorView view = new RectEditorView(this);
+               view.setRect(externalDisplayX1, externalDisplayY1, externalDisplayX2, externalDisplayY2);
+               rectEditLayout.addView(view, new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
+               Button ok = new Button(this);
+               ok.setText("OK");
+               FrameLayout.LayoutParams lpOk = new FrameLayout.LayoutParams(FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT);
+               lpOk.gravity = Gravity.TOP | Gravity.END;
+               rectEditLayout.addView(ok, lpOk);
+               ok.setOnClickListener(v -> {
+                       externalDisplayX1 = view.getX1();
+                       externalDisplayY1 = view.getY1();
+                       externalDisplayX2 = view.getX2();
+                       externalDisplayY2 = view.getY2();
+                       updateExternalDisplayRect(externalDisplayX1, externalDisplayY1, externalDisplayX2, externalDisplayY2);
+                       ViewGroup parent = (ViewGroup) rectEditLayout.getParent();
+                       if (parent != null)
+                               parent.removeView(rectEditLayout);
+                       rectEditLayout = null;
+               });
+               Button cancel = new Button(this);
+               cancel.setText("Cancel");
+               FrameLayout.LayoutParams lpCancel = new FrameLayout.LayoutParams(FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT);
+               lpCancel.gravity = Gravity.TOP | Gravity.START;
+               rectEditLayout.addView(cancel, lpCancel);
+               cancel.setOnClickListener(v -> {
+                       ViewGroup parent = (ViewGroup) rectEditLayout.getParent();
+                       if (parent != null)
+                               parent.removeView(rectEditLayout);
+                       rectEditLayout = null;
+               });
+               addContentView(rectEditLayout, new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
+       }
+
      @TargetApi(Build.VERSION_CODES.JELLY_BEAN_MR1)
      private void showExternalDisplay(String rectParams) {
              if (rectParams != null && !rectParams.isEmpty()) {
@@ -1674,16 +1801,19 @@ public abstract class NativeActivity extends Activity {
 
        public boolean processCommand(String command, String params) {
                SurfaceView surfView = javaGL ? mGLSurfaceView : mSurfaceView;
-            if (command.equals("showExternalDisplay")) {
-                    showExternalDisplay(params);
-                    return true;
-           } else if (command.equals("setExternalDisplayPaused")) {
-                   setExternalDisplayPaused(params);
-                   return true;
-           } else if (command.equals("hideExternalDisplay")) {
-                   hideExternalDisplay();
-                    return true;
-           } else if (command.equals("launchBrowser")) {
+               if (command.equals("showExternalDisplay")) {
+                       showExternalDisplay(params);
+                       return true;
+               } else if (command.equals("setExternalDisplayPaused")) {
+                       setExternalDisplayPaused(params);
+                       return true;
+               } else if (command.equals("editExternalDisplayRect")) {
+                       editExternalDisplayRect();
+                       return true;
+               } else if (command.equals("hideExternalDisplay")) {
+                       hideExternalDisplay();
+                       return true;
+               } else if (command.equals("launchBrowser")) {
                        // Special case for twitter
                        if (params.startsWith("https://twitter.com/#!/")) {
                                try {
