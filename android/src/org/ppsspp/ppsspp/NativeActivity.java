@@ -1510,6 +1510,11 @@ public abstract class NativeActivity extends Activity {
                                else if (moving == 1) { x2 = clamp(x / w); y1 = clamp(y / h); }
                                else if (moving == 2) { x2 = clamp(x / w); y2 = clamp(y / h); }
                                else if (moving == 3) { x1 = clamp(x / w); y2 = clamp(y / h); }
+                               NativeActivity.this.updateExternalDisplayRect(getX1(), getY1(), getX2(), getY2());
+                               NativeActivity.this.externalDisplayX1 = getX1();
+                               NativeActivity.this.externalDisplayY1 = getY1();
+                               NativeActivity.this.externalDisplayX2 = getX2();
+                               NativeActivity.this.externalDisplayY2 = getY2();
                                invalidate();
                                break;
                        case MotionEvent.ACTION_UP:
@@ -1536,8 +1541,12 @@ public abstract class NativeActivity extends Activity {
        }
 
        private void editExternalDisplayRect() {
-               if (rectEditLayout != null)
-                       return;
+              if (rectEditLayout != null)
+                      return;
+              final int origX1 = externalDisplayX1;
+              final int origY1 = externalDisplayY1;
+              final int origX2 = externalDisplayX2;
+              final int origY2 = externalDisplayY2;
                rectEditLayout = new FrameLayout(this);
                rectEditLayout.setBackgroundColor(0x66000000);
                RectEditorView view = new RectEditorView(this);
@@ -1564,12 +1573,17 @@ public abstract class NativeActivity extends Activity {
                FrameLayout.LayoutParams lpCancel = new FrameLayout.LayoutParams(FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT);
                lpCancel.gravity = Gravity.TOP | Gravity.START;
                rectEditLayout.addView(cancel, lpCancel);
-               cancel.setOnClickListener(v -> {
-                       ViewGroup parent = (ViewGroup) rectEditLayout.getParent();
-                       if (parent != null)
-                               parent.removeView(rectEditLayout);
-                       rectEditLayout = null;
-               });
+              cancel.setOnClickListener(v -> {
+                      updateExternalDisplayRect(origX1, origY1, origX2, origY2);
+                      externalDisplayX1 = origX1;
+                      externalDisplayY1 = origY1;
+                      externalDisplayX2 = origX2;
+                      externalDisplayY2 = origY2;
+                      ViewGroup parent = (ViewGroup) rectEditLayout.getParent();
+                      if (parent != null)
+                              parent.removeView(rectEditLayout);
+                      rectEditLayout = null;
+              });
                addContentView(rectEditLayout, new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
        }
 

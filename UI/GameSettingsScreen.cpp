@@ -391,9 +391,10 @@ void GameSettingsScreen::CreateGraphicsSettings(UI::ViewGroup *graphicsSettings)
        extY2->SetEnabledFunc([] { return g_Config.bExternalDisplay; });
        auto extCanvas = graphicsSettings->Add(new Choice(gr->T("Use canvas for rect")));
        extCanvas->SetEnabledFunc([] { return g_Config.bExternalDisplay && PSP_IsInited(); });
-       extCanvas->OnClick.Add([](UI::EventParams &) {
+       extCanvas->OnClick.Add([this](UI::EventParams &) {
                System_EditExternalDisplayRect();
-               return UI::EVENT_CONTINUE;
+               TriggerFinish(DR_YES);
+               return UI::EVENT_DONE;
        });
 #endif
 

@@ -614,17 +614,18 @@ UI::EventReturn GamePauseScreen::OnState(UI::EventParams &e) {
 }
 
 void GamePauseScreen::dialogFinished(const Screen *dialog, DialogResult dr) {
-	std::string tag = dialog->tag();
-	if (tag == "ScreenshotView" && dr == DR_OK) {
-		finishNextFrame_ = true;
-	} else {
-		if (tag == "Game") {
-			g_BackgroundAudio.SetGame(Path());
-		} else if (tag != "Prompt" && tag != "ContextMenuPopup") {
-			// There may have been changes to our savestates, so let's recreate.
-			RecreateViews();
-		}
-	}
+       std::string tag = dialog->tag();
+       if ((tag == "ScreenshotView" && dr == DR_OK) ||
+               (tag == "GameSettings" && dr == DR_YES)) {
+               finishNextFrame_ = true;
+       } else {
+               if (tag == "Game") {
+                       g_BackgroundAudio.SetGame(Path());
+               } else if (tag != "Prompt" && tag != "ContextMenuPopup") {
+                       // There may have been changes to our savestates, so let's recreate.
+                       RecreateViews();
+               }
+       }
 }
 
 UI::EventReturn GamePauseScreen::OnScreenshotClicked(UI::EventParams &e) {
